@@ -141,6 +141,15 @@ source .venv/bin/activate
 
    修改脚本中的区块链节点 URL（默认链接可能失效），需要替换为您自己在 Alchemy 或 Infura 注册的 API 链接。
 
+6. 修复字节码截断错误 (关键 BUG)： 问题：原脚本默认假设 RPC 返回的字节码带 0x 前缀并执行 code[2:] 切片。当 RPC 返回不带前缀的纯 Hex 字符串时，该操作会错误删除指令首字节（如 0x60 PUSH1），导致合约代码无效。 解决：修改 defi_tainter.py 第 70 行左右的 download_bytecode 函数写入逻辑：
+   ```
+   # 原代码: f.write(code[2:])
+   # 修改为 (更稳健的写法):
+   if code.startswith("0x"):
+     f.write(code[2:])
+   else:
+     f.write(code)
+   ```
 ------
 
 ## 4. 运行指南 (Usage)
@@ -212,8 +221,9 @@ free -h
 
 原因：
 
-数据集 (incident.csv) 中的 logic_addr 可能填写的是 Proxy 地址，而非 Implementation 地址。
+`defi_tainter.py` 在下载代码时错误截断了首字节（例如将 `PUSH1` 指令切除），导致保存的 `.hex` 文件变成无效代码。
+* **验证方法**：对比 `cast code <地址>` 的输出与本地 `.hex` 文件，看是否缺失了开头的 `60` 或其他字节。
 
 解决：
 
-Gigahorse 需要分析实际的字节码逻辑。请通过区块链浏览器（如 Etherscan）查找 Proxy 合约在对应区块高度指向的 Implementation Address，并将其填入 -la 参数中。
+参考本文档“3. 配置修正”第 6 点，修改 `defi_tainter.py` 的写入逻辑。
