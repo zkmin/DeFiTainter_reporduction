@@ -4,7 +4,7 @@
 
 ## 重要说明
 
-由于 `gigahorse-toolchain` 原仓库更新频繁且变动较大，直接替换可能会导致预编译内容过多而耗尽内存。请务必基于DeFiTainter仓库内的 `gigahorse-toolchain` 版本进行配置，**不要**直接拉取官方最新版。
+版本兼容性警告： Gigahorse 官方仓库更新频繁，直接拉取最新版会导致内存耗尽或编译失败；而 DeFiTainter 自带的子模块可能存在缺失。 解决方案：需要从官方拉取 特定 Commit 版本 (43b8e0d78128dfbff7f0ab0eb264f06ee9638783) 的 gigahorse-toolchain，并将 DeFiTainter 特有的分析逻辑（.dl 文件和修改版的 gigahorse.py）覆盖进去。
 
 ------
 
@@ -66,18 +66,28 @@ libsqlite3-dev zlib1g-dev mcpp python3 python3-venv python3-pip libboost-all-dev
    souffle --version
    ```
 
-### 2.3 配置 Souffle-Addon
+### 2.3 安装 Gigahorse Toolchain (关键步骤)
+此处需要拉取官方特定版本以修复运行问题。确保你在 DeFiTainter 根目录下：
+```
+# 如果目录下已有空的 gigahorse-toolchain 文件夹，请先删除或直接进入
+rm -rf gigahorse-toolchain
+git clone https://github.com/nevillegrech/gigahorse-toolchain.git
+cd gigahorse-toolchain
+
+# 切换到经过验证的特定 Commit 版本
+git checkout 43b8e0d78128dfbff7f0ab0eb264f06ee9638783
+
+# 更新子模块
+git submodule update --init --recursive
+```
+
+### 2.4 配置 Souffle-Addon
 
 由于自带文件缺失，需要手动克隆指定版本的 `souffle-addon`。
 
 1. 回到 `gigahorse-toolchain` 目录：
 
    ```
-   # 确保在 gigahorse-toolchain 目录下
-   git clone https://github.com/plast-lab/souffle-addon.git
-   cd souffle-addon
-   # 切换到兼容的特定 Commit
-   git checkout 992145cd85da891dd28322cd16460f5e23e6dee4
    make
    ```
 
@@ -119,29 +129,30 @@ source .venv/bin/activate
 
 在运行前，**必须**执行以下代码和文件名的修正，否则无法运行：
 
-1. 修复文件名空格问题：
+1. 修复文件名空格问题与替换：
 
-   将 gigahorse-toolchain/clients/price_manipulation _analysis.dl 重命名为 price_manipulation_analysis.dl（去掉了中间的空格）。
+   将 DeFiTainter修改版本的gigahorse-toolchain/clients/price_manipulation _analysis.dl 重命名为 price_manipulation_analysis.dl（去掉了中间的空格）。并将其替换到新克隆的工具链客户端目录中
+   用 DeFiTainter 修改过的版本替换官方的 gigahorse.py
 
-2. 修复 Python 代码引用：
+3. 修复 Python 代码引用：
 
    修改 defi_tainter.py 第 73 行（根据重命名后的文件修改引用路径）。
 
-3. 修复 Web3 函数名：
+4. 修复 Web3 函数名：
 
    在 defi_tainter.py 中，将过时的 toChecksumAddress 修改为新版 API to_checksum_address。
 
-4. **创建合约存储目录**：
+5. **创建合约存储目录**：
 
    ```
    mkdir -p /home/km/DeFiTainter/gigahorse-toolchain/contracts
    ```
 
-5. 配置 RPC 节点：
+6. 配置 RPC 节点：
 
    修改脚本中的区块链节点 URL（默认链接可能失效），需要替换为您自己在 Alchemy 或 Infura 注册的 API 链接。
 
-6. 修复字节码截断错误 (关键 BUG)： 问题：原脚本默认假设 RPC 返回的字节码带 0x 前缀并执行 code[2:] 切片。当 RPC 返回不带前缀的纯 Hex 字符串时，该操作会错误删除指令首字节（如 0x60 PUSH1），导致合约代码无效。 解决：修改 defi_tainter.py 第 70 行左右的 download_bytecode 函数写入逻辑：
+7. 修复字节码截断错误 (关键 BUG)： 问题：原脚本默认假设 RPC 返回的字节码带 0x 前缀并执行 code[2:] 切片。当 RPC 返回不带前缀的纯 Hex 字符串时，该操作会错误删除指令首字节（如 0x60 PUSH1），导致合约代码无效。 解决：修改 defi_tainter.py 第 70 行左右的 download_bytecode 函数写入逻辑：
    ```
    # 原代码: f.write(code[2:])
    # 修改为 (更稳健的写法):
@@ -169,6 +180,15 @@ python3 defi_tainter.py -bp <CHAIN_ID> -la <LOGIC_ADDR> -sa <STORAGE_ADDR> -fs <
 | **-sa**       | Storage Address     | 存储地址   | 在代理模式下，指 Proxy 合约地址（资金/状态所在）。           |
 | **-fs**       | Function Signature  | 函数签名   | 目标函数的签名或哈希，如 `swap(uint256)`。                   |
 | **-bn**       | Block Number        | 区块高度   | 分析的上下文区块高度，建议设为攻击发生前。                   |
+
+运行特定示例以确保环境配置正确：
+```
+python3 ./defi_tainter.py -bp ETH \
+-la 0x5ade7ae8660293f2ebfcefaba91d141d72d221e8 \
+-sa 0x5ade7ae8660293f2ebfcefaba91d141d72d221e8 \
+-fs 0xd79875eb -bn 10954411
+```
+如果运行成功且未报错，说明 Toolchain 版本及替换文件工作正常。
 
 ### 4.2 批量运行
 
