@@ -4,7 +4,7 @@
 
 ## 重要说明
 
-由于 `gigahorse-toolchain` 原仓库更新频繁且变动较大，直接替换可能会导致预编译内容过多而耗尽内存。请务必基于本仓库内的 `gigahorse-toolchain` 版本进行配置，**不要**直接拉取官方最新版。
+由于 `gigahorse-toolchain` 原仓库更新频繁且变动较大，直接替换可能会导致预编译内容过多而耗尽内存。请务必基于DeFiTainter仓库内的 `gigahorse-toolchain` 版本进行配置，**不要**直接拉取官方最新版。
 
 ------
 
